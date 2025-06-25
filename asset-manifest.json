@@ -1,0 +1,15 @@
+{
+  "files": {
+    "main.css": "/taptap-new/static/css/main.68066243.css",
+    "main.js": "/taptap-new/static/js/main.1625efb9.js",
+    "static/js/488.13ed1411.chunk.js": "/taptap-new/static/js/488.13ed1411.chunk.js",
+    "index.html": "/taptap-new/index.html",
+    "main.68066243.css.map": "/taptap-new/static/css/main.68066243.css.map",
+    "main.1625efb9.js.map": "/taptap-new/static/js/main.1625efb9.js.map",
+    "488.13ed1411.chunk.js.map": "/taptap-new/static/js/488.13ed1411.chunk.js.map"
+  },
+  "entrypoints": [
+    "static/css/main.68066243.css",
+    "static/js/main.1625efb9.js"
+  ]
+}
