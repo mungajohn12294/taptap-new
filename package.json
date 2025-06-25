@@ -1,0 +1,50 @@
+{
+  "name": "taptap-new",
+  "version": "0.1.0",
+  "homepage": "https://your-username.github.io/taptap-new",
+  "private": true,
+  "dependencies": {
+    "@tsparticles/engine": "^3.5.0",
+    "@tsparticles/react": "^3.0.0",
+    "@tsparticles/slim": "^3.5.0",
+    "firebase": "^9.0.0",
+    "framer-motion": "^11.18.2",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
+    "react-router-dom": "^6.26.2",
+    "react-scripts": "5.0.1",
+    "web-vitals": "^5.0.3"
+  },
+  "devDependencies": {
+    "autoprefixer": "^10.4.19",
+    "gh-pages": "^6.3.0",
+    "postcss": "^8.4.38",
+    "tailwindcss": "^3.4.3"
+  },
+  "scripts": {
+    "start": "react-scripts start",
+    "build": "react-scripts build",
+    "test": "react-scripts test",
+    "eject": "react-scripts eject",
+    "predeploy": "npm run build",
+    "deploy": "gh-pages -d build"
+  },
+  "eslintConfig": {
+    "extends": [
+      "react-app",
+      "react-app/jest"
+    ]
+  },
+  "browserslist": {
+    "production": [
+      ">0.2%",
+      "not dead",
+      "not op_mini all"
+    ],
+    "development": [
+      "last 1 chrome version",
+      "last 1 firefox version",
+      "last 1 safari version"
+    ]
+  }
+}
