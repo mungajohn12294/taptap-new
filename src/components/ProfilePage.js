@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { auth, database } from '../firebase';
-import { ref, update, get } from 'firebase/database';
+import { auth, database, storage } from '../firebase';
+import { ref as dbRef, update, get } from 'firebase/database';
+import { ref as storageRef, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { useNavigate } from 'react-router-dom';
 import { serverTimestamp } from 'firebase/database';
 
@@ -11,14 +12,16 @@ const ProfilePage = ({ currentUser }) => {
     location: '',
     dateOfBirth: '',
     bio: '',
+    photoURL: '',
   });
+  const [photo, setPhoto] = useState(null);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
 
   useEffect(() => {
     if (!currentUser) return;
-    const userRef = ref(database, `users/${currentUser.uid}`);
+    const userRef = dbRef(database, `users/${currentUser.uid}`);
     get(userRef).then((snapshot) => {
       if (snapshot.exists()) {
         console.log('Fetched profile:', snapshot.val());
@@ -41,13 +44,21 @@ const ProfilePage = ({ currentUser }) => {
     }
 
     try {
-      const userRef = ref(database, `users/${currentUser.uid}`);
-      const updatedProfile = {
+      const userRef = dbRef(database, `users/${currentUser.uid}`);
+      let updatedProfile = {
         ...profile,
         email: currentUser.email,
         online: true,
         lastActive: serverTimestamp(),
       };
+
+      if (photo) {
+        const photoRef = storageRef(storage, `profile_photos/${currentUser.uid}`);
+        await uploadBytes(photoRef, photo);
+        const photoURL = await getDownloadURL(photoRef);
+        updatedProfile.photoURL = photoURL;
+      }
+
       console.log('Saving profile:', updatedProfile);
       await update(userRef, updatedProfile);
       navigate('/main');
@@ -80,6 +91,24 @@ const ProfilePage = ({ currentUser }) => {
           </motion.p>
         )}
         <form onSubmit={handleSubmit} className="space-y-4">
+          {profile.photoURL && (
+            <div className="flex justify-center mb-4">
+              <img
+                src={profile.photoURL}
+                alt="Profile"
+                className="w-24 h-24 rounded-full object-cover"
+              />
+            </div>
+          )}
+          <div>
+            <label className="block text-gray-400 mb-1">Profile Photo</label>
+            <input
+              type="file"
+              accept="image/*"
+              onChange={(e) => setPhoto(e.target.files[0])}
+              className="w-full p-3 bg-transparent border border-cyan-400 rounded-lg text-white"
+            />
+          </div>
           <div>
             <label className="block text-gray-400 mb-1">Display Name</label>
             <input
