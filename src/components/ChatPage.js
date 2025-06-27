@@ -1,23 +1,29 @@
 import { useState, useEffect, useRef } from 'react';
 import { motion } from 'framer-motion';
-import { database } from '../firebase';
-import { ref, onValue, push, serverTimestamp } from 'firebase/database';
+import { database, storage } from '../firebase';
+import { ref as dbRef, onValue, push, serverTimestamp } from 'firebase/database';
+import { ref as storageRef, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { useParams, useNavigate } from 'react-router-dom';
 
 const ChatPage = ({ currentUser }) => {
   const { chatId } = useParams();
   const [messages, setMessages] = useState([]);
   const [newMessage, setNewMessage] = useState('');
+  const [file, setFile] = useState(null);
+  const [error, setError] = useState('');
+  const [loading, setLoading] = useState(false);
   const messagesEndRef = useRef(null);
   const navigate = useNavigate();
 
   useEffect(() => {
     if (!currentUser || !chatId) {
       console.error('Missing currentUser or chatId:', { currentUser, chatId });
+      setError('Invalid chat. Returning to main.');
+      setTimeout(() => navigate('/main'), 2000);
       return;
     }
 
-    const messagesRef = ref(database, `chats/${chatId}/messages`);
+    const messagesRef = dbRef(database, `chats/${chatId}/messages`);
     console.log('Subscribing to:', `chats/${chatId}/messages`);
 
     const unsubscribe = onValue(
@@ -33,10 +39,11 @@ const ChatPage = ({ currentUser }) => {
         } else {
           console.log('No messages in chat:', chatId);
         }
-        setMessages(msgs);
+        setMessages(msgs.sort((a, b) => (a.timestamp || 0) - (b.timestamp || 0)));
       },
       (error) => {
         console.error('Error fetching messages:', error);
+        setError('Failed to load messages. Please try again.');
       }
     );
 
@@ -44,7 +51,7 @@ const ChatPage = ({ currentUser }) => {
       console.log('Unsubscribing from:', `chats/${chatId}/messages`);
       unsubscribe();
     };
-  }, [chatId, currentUser]);
+  }, [chatId, currentUser, navigate]);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -52,18 +59,43 @@ const ChatPage = ({ currentUser }) => {
 
   const sendMessage = async (e) => {
     e.preventDefault();
-    if (!newMessage.trim()) return;
+    if (!newMessage.trim() && !file) {
+      setError('Message or file required');
+      return;
+    }
+
+    setError('');
+    setLoading(true);
 
     try {
-      console.log('Sending message:', { text: newMessage, sender: currentUser.uid });
-      await push(ref(database, `chats/${chatId}/messages`), {
+      const messagesRef = dbRef(database, `chats/${chatId}/messages`);
+      let messageData = {
         sender: currentUser.uid,
-        text: newMessage,
         timestamp: serverTimestamp(),
-      });
+      };
+
+      if (newMessage.trim()) {
+        messageData.text = newMessage;
+      }
+
+      if (file) {
+        const fileRef = storageRef(storage, `chat_files/${chatId}/${Date.now()}_${file.name}`);
+        await uploadBytes(fileRef, file);
+        const fileURL = await getDownloadURL(fileRef);
+        messageData.fileURL = fileURL;
+        messageData.fileName = file.name;
+        messageData.fileType = file.type;
+      }
+
+      console.log('Sending message:', messageData);
+      await push(messagesRef, messageData);
       setNewMessage('');
+      setFile(null);
     } catch (error) {
       console.error('Error sending message:', error);
+      setError('Failed to send message. Please try again.');
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -85,6 +117,15 @@ const ChatPage = ({ currentUser }) => {
           Back to Main
         </motion.button>
       </motion.div>
+      {error && (
+        <motion.p
+          className="text-red-400 text-center p-4"
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+        >
+          {error}
+        </motion.p>
+      )}
       <div className="flex-1 p-6 overflow-y-auto">
         {messages.length === 0 ? (
           <p className="text-gray-400 text-center">No messages yet. Start chatting!</p>
@@ -104,7 +145,33 @@ const ChatPage = ({ currentUser }) => {
                     : 'bg-white bg-opacity-10 text-white'
                 }`}
               >
-                <p>{msg.text}</p>
+                {msg.text && <p>{msg.text}</p>}
+                {msg.fileURL && (
+                  <div className="mt-2">
+                    {msg.fileType.startsWith('image/') ? (
+                      <img
+                        src={msg.fileURL}
+                        alt={msg.fileName}
+                        className="max-w-full rounded-lg"
+                      />
+                    ) : msg.fileType.startsWith('video/') ? (
+                      <video
+                        src={msg.fileURL}
+                        controls
+                        className="max-w-full rounded-lg"
+                      />
+                    ) : (
+                      <a
+                        href={msg.fileURL}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-cyan-400 underline"
+                      >
+                        {msg.fileName}
+                      </a>
+                    )}
+                  </div>
+                )}
                 <p className="text-xs text-gray-400 mt-1">
                   {msg.timestamp ? new Date(msg.timestamp).toLocaleTimeString() : 'Sending...'}
                 </p>
@@ -115,22 +182,31 @@ const ChatPage = ({ currentUser }) => {
         <div ref={messagesEndRef} />
       </div>
       <form onSubmit={sendMessage} className="p-6">
-        <div className="flex space-x-4">
+        <div className="flex flex-col space-y-4">
           <input
             type="text"
             value={newMessage}
             onChange={(e) => setNewMessage(e.target.value)}
             placeholder="Type a message..."
-            className="flex-1 p-3 bg-transparent border border-cyan-400 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-cyan-600"
+            className="p-3 bg-transparent border border-cyan-400 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-cyan-600"
           />
-          <motion.button
-            type="submit"
-            className="p-3 bg-cyan-400 text-black rounded-lg font-semibold hover:bg-cyan-500"
-            whileHover={{ scale: 1.05 }}
-            whileTap={{ scale: 0.95 }}
-          >
-            Send
-          </motion.button>
+          <div className="flex space-x-4">
+            <input
+              type="file"
+              accept="image/*,video/*"
+              onChange={(e) => setFile(e.target.files[0])}
+              className="p-3 bg-transparent border border-cyan-400 rounded-lg text-white"
+            />
+            <motion.button
+              type="submit"
+              className={`p-3 ${loading ? 'bg-gray-500' : 'bg-cyan-400'} text-black rounded-lg font-semibold hover:bg-cyan-500`}
+              disabled={loading}
+              whileHover={{ scale: 1.05 }}
+              whileTap={{ scale: 0.95 }}
+            >
+              {loading ? 'Sending...' : 'Send'}
+            </motion.button>
+          </div>
         </div>
       </form>
     </div>
