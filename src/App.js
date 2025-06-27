@@ -1,10 +1,11 @@
-import { motion } from "framer-motion";
 import { useState, useEffect } from 'react';
 import { HashRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import AuthPage from './components/AuthPage';
 import ProfilePage from './components/ProfilePage';
 import MainPage from './components/UserDiscovery';
 import ChatPage from './components/ChatPage';
+import SettingsPage from './components/SettingsPage';
+import PostsPage from './components/PostsPage';
 import { auth, database } from './firebase';
 import { onAuthStateChanged } from 'firebase/auth';
 import { ref, update, onDisconnect, serverTimestamp } from 'firebase/database';
@@ -56,16 +57,18 @@ const App = () => {
   }, []);
 
   if (isLoading) {
-    return <div className="min-h-screen bg-gradient-to-b from-black to-purple-900 flex items-center justify-center">
-      <motion.p
-        className="text-cyan-400 text-2xl"
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        transition={{ duration: 0.5 }}
-      >
-        Loading TapTap...
-      </motion.p>
-    </div>;
+    return (
+      <div className="min-h-screen bg-gradient-to-b from-black to-purple-900 flex items-center justify-center">
+        <motion.p
+          className="text-cyan-400 text-2xl"
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ duration: 0.5 }}
+        >
+          Loading TapTap...
+        </motion.p>
+      </div>
+    );
   }
 
   return (
@@ -102,11 +105,11 @@ const App = () => {
           />
           <Route
             path="/settings"
-            element={user ? <div>Settings Page (Coming Soon)</div> : <Navigate to="/" />}
+            element={user ? <SettingsPage currentUser={user} /> : <Navigate to="/" />}
           />
           <Route
             path="/posts"
-            element={user ? <div>Posts Page (Coming Soon)</div> : <Navigate to="/" />}
+            element={user ? <PostsPage currentUser={user} /> : <Navigate to="/" />}
           />
         </Routes>
       </Router>
