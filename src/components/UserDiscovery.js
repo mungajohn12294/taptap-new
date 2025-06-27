@@ -7,35 +7,33 @@ import { serverTimestamp } from 'firebase/database';
 
 const MainPage = ({ currentUser }) => {
   const [onlineUsers, setOnlineUsers] = useState([]);
+  const [chats, setChats] = useState([]);
+  const [posts, setPosts] = useState([]);
   const navigate = useNavigate();
 
   useEffect(() => {
     if (!currentUser) {
-      console.log('No currentUser, skipping user fetch');
+      console.log('No currentUser, skipping fetches');
       return;
     }
 
-    console.log('Current user:', currentUser.uid, currentUser.email);
+    // Fetch online users
     const usersRef = ref(database, 'users');
-    console.log('Subscribing to usersRef:', usersRef.path);
-
-    const unsubscribe = onValue(
+    const usersUnsubscribe = onValue(
       usersRef,
       (snapshot) => {
         const users = [];
         if (snapshot.exists()) {
           snapshot.forEach((child) => {
             const user = child.val();
-            console.log('Raw user data:', child.key, user);
             if (user.online && child.key !== currentUser.uid) {
               users.push({ id: child.key, ...user });
             }
           });
           console.log('Filtered online users:', users);
         } else {
-          console.log('No users found in database');
+          console.log('No users found');
         }
-        // Sort by location proximity (basic: same location first)
         const sortedUsers = users.sort((a, b) => {
           if (a.location === currentUser.location && b.location !== currentUser.location) return -1;
           if (a.location !== currentUser.location && b.location === currentUser.location) return 1;
@@ -48,9 +46,53 @@ const MainPage = ({ currentUser }) => {
       }
     );
 
+    // Fetch chats
+    const chatsRef = ref(database, 'chats');
+    const chatsUnsubscribe = onValue(
+      chatsRef,
+      (snapshot) => {
+        const chatList = [];
+        if (snapshot.exists()) {
+          snapshot.forEach((child) => {
+            const chat = child.val();
+            if (chat.participants && chat.participants[currentUser.uid]) {
+              chatList.push({ id: child.key, ...chat });
+            }
+          });
+          console.log('Fetched chats:', chatList);
+        }
+        setChats(chatList);
+      },
+      (error) => {
+        console.error('Error fetching chats:', error);
+      }
+    );
+
+    // Fetch recent posts (limit to 3)
+    const postsRef = ref(database, 'posts');
+    const postsUnsubscribe = onValue(
+      postsRef,
+      (snapshot) => {
+        const postList = [];
+        if (snapshot.exists()) {
+          snapshot.forEach((child) => {
+            const post = child.val();
+            postList.push({ id: child.key, ...post });
+          });
+          console.log('Fetched posts:', postList);
+        }
+        setPosts(postList.slice(0, 3).reverse());
+      },
+      (error) => {
+        console.error('Error fetching posts:', error);
+      }
+    );
+
     return () => {
-      console.log('Unsubscribing from usersRef');
-      unsubscribe();
+      usersUnsubscribe();
+      chatsUnsubscribe();
+      postsUnsubscribe();
+      console.log('Unsubscribed from users, chats, posts');
     };
   }, [currentUser]);
 
@@ -65,7 +107,6 @@ const MainPage = ({ currentUser }) => {
         },
         createdAt: serverTimestamp(),
       });
-      console.log('Chat created, navigating to:', `/chat/${chatId}`);
       navigate(`/chat/${chatId}`);
     } catch (error) {
       console.error('Error starting chat:', error);
@@ -108,10 +149,29 @@ const MainPage = ({ currentUser }) => {
           Log Out
         </motion.button>
       </div>
-      <h2 className="text-2xl font-semibold text-cyan-400 mb-4">Online Users</h2>
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+      <h2 className="text-2xl font-semibold text-cyan-400 mb-4">Your Chats</h2>
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+        {chats.length === 0 ? (
+          <p className="text-gray-400 text-center">No chats yet. Start one!</p>
+        ) : (
+          chats.map((chat) => (
+            <motion.div
+              key={chat.id}
+              className="p-4 rounded-lg bg-white bg-opacity-10 backdrop-blur-lg border border-cyan-500 border-opacity-50 cursor-pointer hover:bg-opacity-20"
+              initial={{ y: 20, opacity: 0 }}
+              animate={{ y: 0, opacity: 1 }}
+              transition={{ duration: 0.3 }}
+              onClick={() => navigate(`/chat/${chat.id}`)}
+            >
+              <p className="text-cyan-500">Chat with {Object.keys(chat.participants).find(id => id !== currentUser.uid)}</p>
+            </motion.div>
+          ))
+        )}
+      </div>
+      <h2 className="text-2xl font-semibold text-cyan-400 mb-4">Find Friends</h2>
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
         {onlineUsers.length === 0 ? (
-          <p className="text-gray-400 text-center">No users online. Invite friends to TapTap!</p>
+          <p className="text-gray-400 text-center">No users online. Invite friends!</p>
         ) : (
           onlineUsers.map((user) => (
             <motion.div
@@ -120,7 +180,6 @@ const MainPage = ({ currentUser }) => {
               initial={{ y: 20, opacity: 0 }}
               animate={{ y: 0, opacity: 1 }}
               transition={{ duration: 0.3 }}
-              whileHover={{ scale: 1.05 }}
               onClick={() => startChat(user.id)}
             >
               <h3 className="text-lg font-semibold text-cyan-500">{user.displayName}</h3>
@@ -130,6 +189,35 @@ const MainPage = ({ currentUser }) => {
             </motion.div>
           ))
         )}
+      </div>
+      <h2 className="text-2xl font-semibold text-cyan-400 mb-4">Recent Posts</h2>
+      <div className="space-y-4 max-w-2xl mx-auto">
+        {posts.length === 0 ? (
+          <p className="text-gray-400 text-center">No posts yet. Share something!</p>
+        ) : (
+          posts.map((post) => (
+            <motion.div
+              key={post.id}
+              className="p-4 rounded-lg bg-white bg-opacity-10 backdrop-blur-lg border border-cyan-500 border-opacity-50"
+              initial={{ y: 20, opacity: 0 }}
+              animate={{ y: 0, opacity: 1 }}
+              transition={{ duration: 0.3 }}
+            >
+              <p className="text-white">{post.text}</p>
+              <p className="text-gray-400 text-sm mt-2">
+                By {post.authorName} at {post.timestamp ? new Date(post.timestamp).toLocaleString() : 'Just now'}
+              </p>
+            </motion.div>
+          ))
+        )}
+        <motion.button
+          onClick={() => navigate('/posts')}
+          className="mt-4 p-2 bg-blue-800 text-white rounded-lg hover:bg-blue-900"
+          whileHover={{ scale: 1.05 }}
+          transition={{ duration: 0.2 }}
+        >
+          View All Posts
+        </motion.button>
       </div>
     </div>
   );
